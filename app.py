@@ -826,17 +826,19 @@ with aba_analise:
             value=DEFAULT_MASK_CUTOFF, step=0.05,
             help="Probabilidade mínima para marcar um pixel como anômalo.",
         )
-    with col_cfg2:
-        use_mean = st.checkbox(
-            "Informar temperatura real do frame (°C)",
-            value=False,
-            help=(
-                "Canal 2 do modelo: temperatura média absoluta normalizada globalmente. "
-                "Se souber a temperatura real da câmera Pi, informe aqui para maior precisão. "
-                f"Sem isso, assume o ponto médio da faixa de treinamento "
-                f"({model_cfg['g_min']:.1f}°C – {model_cfg['g_max']:.1f}°C)."))
-        mean_abs_val = None
-        if use_mean:
+
+    use_mean = st.checkbox(
+        "Informar temperatura real do frame (°C)",
+        value=False,
+        help=(
+            f"Se souber a temperatura média real do frame (lida na câmera), informe aqui. "
+            f"Isso melhora a precisão da análise. "
+            f"Se deixar desmarcado, o modelo assume {(model_cfg['g_min'] + model_cfg['g_max']) / 2:.1f}°C "
+            f"(centro da faixa de treinamento: {model_cfg['g_min']:.1f}°C – {model_cfg['g_max']:.1f}°C)."))
+    mean_abs_val = None
+    if use_mean:
+        col_temp, _ = st.columns([1, 2])
+        with col_temp:
             mean_abs_val = st.number_input("Temperatura média do frame (°C)",
                 value=float((model_cfg['g_min'] + model_cfg['g_max']) / 2), step=0.5)
 
@@ -1139,83 +1141,225 @@ with aba_analise:
 #  ABA — SOBRE O MODELO
 # ══════════════════════════════════════════════════════════
 with aba_modelo:
-    st.markdown("## Sobre o Modelo")
-    st.markdown(
-        "Este sistema detecta anomalias térmicas na superfície do **Polisher** usando imagens "
-        "capturadas por uma câmera Pi térmica. O pipeline combina dois modelos de deep learning "
-        "treinados com dados reais do processo.",
-        unsafe_allow_html=False,
-    )
+ 
+    # ── Cabeçalho da aba ──────────────────────────────────────────
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#1c2b3a 0%,#243447 100%);border-radius:16px;
+                padding:2rem 2.4rem;margin-bottom:1.8rem;border-left:5px solid #e06c00;">
+        <div style="font-size:1.5rem;font-weight:800;color:#f0f4f8;margin-bottom:0.4rem;">
+            🔬 Sobre o Modelo e o Dataset
+        </div>
+        <div style="color:#8daabf;font-size:0.95rem;line-height:1.6;">
+            Este sistema detecta anomalias térmicas na superfície do <strong style="color:#e0c070;">Polisher</strong>
+            monitorando o processo de polimento de aço via câmera Pi térmica.
+            Os modelos foram treinados com dados reais do projeto
+            <strong style="color:#e0c070;">Pitch-In LBAM</strong> da Universidade de Sheffield,
+            publicados no Kaggle pelo pesquisador <strong style="color:#e0c070;">D. B. Miller et al.</strong>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 1 — DATASET
+    # ══════════════════════════════════════════════════════
+    st.markdown('<div class="section-title">Origem dos dados — Pitch-In LBAM Thermal Imaging Dataset</div>', unsafe_allow_html=True)
+ 
+    col_ds1, col_ds2 = st.columns([3, 2])
+    with col_ds1:
+        st.markdown("""
+        <div class="card-info" style="margin-bottom:1rem;">
+            <div style="font-weight:700;font-size:1rem;color:#1c2b3a;margin-bottom:0.6rem;">
+                📦 O que é o dataset?
+            </div>
+            <div style="color:#5e6d7c;font-size:0.9rem;line-height:1.7;">
+                O <strong>Pitch-In LBAM Thermal Imaging Dataset</strong> é um conjunto de dados
+                de imagens térmicas de processo de fabricação aditiva a laser (<em>Laser-Based
+                Additive Manufacturing</em>), coletado pela Universidade de Sheffield em parceria
+                com a <strong>Rolls-Royce</strong> no âmbito do projeto <em>Pitch-In</em> de IoT
+                industrial.<br><br>
+                Os dados são gravados por uma <strong>câmera Pi térmica</strong> acoplada a uma
+                bancada de polimento de superfícies de aço (<em>Polisher</em>),
+                armazenados no formato <code>HDF5</code> com a estrutura
+                <code>pi-camera-1[H × W × T]</code>, em que cada "fatia" ao longo do eixo
+                temporal é um frame de temperatura absoluta por pixel, em graus Celsius.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div class="card-soft" style="margin-bottom:1rem;">
+            <div style="font-weight:700;font-size:0.95rem;color:#1c2b3a;margin-bottom:0.5rem;">
+                🔗 Referência
+            </div>
+            <div style="color:#5e6d7c;font-size:0.88rem;line-height:1.65;">
+                Miller, D. B., Song, B., Farnsworth, M. &amp; Tiwari, D. (2021).
+                <em>Pitch-In LBAM Thermal Imaging Dataset</em>. Kaggle.<br>
+                <a href="https://www.kaggle.com/datasets/dbmiller/pitchin-lbam-thermal-imaging-dataset"
+                   target="_blank"
+                   style="color:#1a6fb5;font-size:0.85rem;word-break:break-all;">
+                    kaggle.com/datasets/dbmiller/pitchin-lbam-thermal-imaging-dataset
+                </a>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+    with col_ds2:
+        st.markdown("""
+        <div class="card-soft" style="margin-bottom:0.7rem;">
+            <div class="section-title" style="margin-bottom:0.5rem;">Características do arquivo bruto</div>
+            <table style="width:100%;font-size:0.87rem;border-collapse:collapse;">
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Formato</td>
+                    <td style="text-align:right;"><code>HDF5</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Dataset interno</td>
+                    <td style="text-align:right;"><code>pi-camera-1</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Dimensões</td>
+                    <td style="text-align:right;"><code>H × W × frames</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Unidade</td>
+                    <td style="text-align:right;"><code>°C / pixel</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Câmera</td>
+                    <td style="text-align:right;"><code>Pi Thermal Cam</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Resolução saída</td>
+                    <td style="text-align:right;"><code>320 × 240 px</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Frames extraídos</td>
+                    <td style="text-align:right;"><code>2 000</code></td></tr>
+                <tr><td style="color:#5e6d7c;padding:4px 0;">Colormap visualização</td>
+                    <td style="text-align:right;"><code>inferno</code></td></tr>
+            </table>
+        </div>
+        """, unsafe_allow_html=True)
+ 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── Métricas legíveis ──────────────────────────────────────────
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 2 — EXTRAÇÃO E LABELING
+    # ══════════════════════════════════════════════════════
+    st.markdown('<div class="section-title">Como os dados foram preparados</div>', unsafe_allow_html=True)
+ 
+    col_ext1, col_ext2 = st.columns(2)
+    with col_ext1:
+        st.markdown("""
+        <div class="card-soft" style="margin-bottom:0.75rem;">
+            <div style="font-weight:700;font-size:0.95rem;color:#1c2b3a;margin-bottom:0.4rem;">
+                🗂️ Amostragem estratificada
+            </div>
+            <div style="color:#5e6d7c;font-size:0.87rem;line-height:1.65;">
+                Para evitar redundância temporal e garantir diversidade de padrões,
+                os 2 000 frames foram selecionados em quatro estratos:
+                <ul style="margin:0.4rem 0 0 1rem;padding:0;">
+                    <li><strong>40%</strong> — cobertura temporal uniforme</li>
+                    <li><strong>25%</strong> — frames de alta variação espacial (alto desvio padrão)</li>
+                    <li><strong>25%</strong> — frames de alto delta entre frames consecutivos</li>
+                    <li><strong>10%</strong> — frames em temperaturas extremas (mín/máx)</li>
+                </ul>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+    with col_ext2:
+        st.markdown("""
+        <div class="card-soft" style="margin-bottom:0.75rem;">
+            <div style="font-weight:700;font-size:0.95rem;color:#1c2b3a;margin-bottom:0.4rem;">
+                🏷️ Labels automáticos por temperatura absoluta
+            </div>
+            <div style="color:#5e6d7c;font-size:0.87rem;line-height:1.65;">
+                Cada frame recebe um label com base na <strong>temperatura média absoluta</strong>
+                do frame em relação à distribuição global, via percentis:
+                <ul style="margin:0.4rem 0 0 1rem;padding:0;">
+                    <li><strong>Normal</strong> — abaixo do percentil 75</li>
+                    <li><strong>Atenção</strong> — entre percentil 75 e 95</li>
+                    <li><strong>Crítico</strong> — acima do percentil 95</li>
+                </ul>
+                Os limiares exatos (em °C) são derivados da distribuição real
+                do arquivo HDF5 e salvos nos checkpoints.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 3 — MÉTRICAS DOS MODELOS
+    # ══════════════════════════════════════════════════════
     st.markdown('<div class="section-title">Desempenho dos modelos</div>', unsafe_allow_html=True)
     mc1, mc2, mc3, mc4 = st.columns(4)
-
+ 
     val_acc = model_cfg["val_acc"]
     val_iou = model_cfg["val_iou"]
     val_f1  = model_cfg["val_f1"]
     acc_fmt = f"{val_acc*100:.1f}%" if isinstance(val_acc, float) else val_acc
     iou_fmt = f"{val_iou*100:.1f}%" if isinstance(val_iou, float) else val_iou
     f1_fmt  = f"{val_f1*100:.1f}%"  if isinstance(val_f1,  float) else val_f1
-
+ 
     mc1.markdown(f"""
     <div class="card-soft" style="text-align:center;padding:1rem 0.5rem;">
-        <div class="small-muted">Acurácia na validação</div>
+        <div class="small-muted">Acurácia (validação)</div>
         <div style="font-size:1.8rem;font-weight:800;color:#1c2b3a;">{acc_fmt}</div>
-        <div class="small-muted">Classificador — % de frames classificados corretamente</div>
+        <div class="small-muted">EfficientNet-B3 — frames classificados corretamente</div>
     </div>""", unsafe_allow_html=True)
-
+ 
     mc2.markdown(f"""
     <div class="card-soft" style="text-align:center;padding:1rem 0.5rem;">
-        <div class="small-muted">IoU da segmentação</div>
+        <div class="small-muted">IoU (segmentação)</div>
         <div style="font-size:1.8rem;font-weight:800;color:#1c2b3a;">{iou_fmt}</div>
-        <div class="small-muted">U-Net — sobreposição entre máscara predita e real</div>
+        <div class="small-muted">U-Net — sobreposição máscara predita vs. pseudo-mask</div>
     </div>""", unsafe_allow_html=True)
-
+ 
     mc3.markdown(f"""
     <div class="card-soft" style="text-align:center;padding:1rem 0.5rem;">
-        <div class="small-muted">F1-Score da segmentação</div>
+        <div class="small-muted">F1-Score (segmentação)</div>
         <div style="font-size:1.8rem;font-weight:800;color:#1c2b3a;">{f1_fmt}</div>
-        <div class="small-muted">U-Net — equilíbrio entre precisão e recall por pixel</div>
+        <div class="small-muted">U-Net — equilíbrio precisão/recall por pixel</div>
     </div>""", unsafe_allow_html=True)
-
+ 
     mc4.markdown(f"""
     <div class="card-soft" style="text-align:center;padding:1rem 0.5rem;">
-        <div class="small-muted">Épocas de treinamento</div>
+        <div class="small-muted">Épocas treinadas</div>
         <div style="font-size:1.8rem;font-weight:800;color:#1c2b3a;">{model_cfg["epoch_cls"]} / {model_cfg["epoch_unet"]}</div>
         <div class="small-muted">Classificador / U-Net</div>
     </div>""", unsafe_allow_html=True)
-
+ 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── Como funciona ──────────────────────────────────────────────
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 4 — ARQUITETURA DO PIPELINE
+    # ══════════════════════════════════════════════════════
     col_desc, col_pipe = st.columns(2)
     with col_desc:
-        st.markdown('<div class="section-title">Como funciona</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Arquitetura do pipeline</div>', unsafe_allow_html=True)
         st.markdown("""
-**Modelo 1 — Classificador (EfficientNet-B3)**
-
-Recebe cada frame térmico em escala de cinza e decide se a superfície está em estado
-**Normal**, requer **Atenção** ou está em estado **Crítico**.
-Internamente, o modelo gera um mapa de calor (Grad-CAM) que destaca as regiões do
-frame que mais influenciaram a decisão — funcionando como um localizador automático.
-
-**Modelo 2 — Segmentador (U-Net)**
-
-Usa o frame original, a temperatura normalizada e o mapa Grad-CAM como entrada
-e produz uma máscara pixel-a-pixel, indicando exatamente quais regiões são anômalas.
-O resultado é exibido como contornos e bounding boxes sobrepostos ao frame.
-        """)
-
+        <div class="card-soft" style="margin-bottom:0.8rem;border-left:4px solid #1a6fb5;">
+            <div style="font-weight:700;font-size:0.95rem;color:#1c2b3a;margin-bottom:0.4rem;">
+                Modelo 1 — Classificador (EfficientNet-B3)
+            </div>
+            <div style="color:#5e6d7c;font-size:0.87rem;line-height:1.65;">
+                Recebe o frame térmico em <strong>2 canais</strong>: o padrão espacial
+                em grayscale (canal 0) e a temperatura média absoluta normalizada globalmente
+                (canal 1). Classifica o frame em <strong>Normal / Atenção / Crítico</strong>
+                e gera um mapa <strong>Grad-CAM</strong> que localiza as regiões mais
+                influentes — sem nenhuma anotação manual.
+            </div>
+        </div>
+        <div class="card-soft" style="border-left:4px solid #e06c00;">
+            <div style="font-weight:700;font-size:0.95rem;color:#1c2b3a;margin-bottom:0.4rem;">
+                Modelo 2 — Segmentador (U-Net, 3 canais)
+            </div>
+            <div style="color:#5e6d7c;font-size:0.87rem;line-height:1.65;">
+                Recebe <strong>3 canais</strong>: frame spatial, temperatura normalizada
+                e o mapa Grad-CAM do classificador. Produz uma
+                <strong>máscara pixel-a-pixel</strong> de probabilidade de anomalia,
+                refinando a localização com precisão geométrica. As pseudo-masks de
+                treinamento são derivadas automaticamente do Grad-CAM — sem supervisão manual.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+ 
     with col_pipe:
         st.markdown('<div class="section-title">Etapas do pipeline</div>', unsafe_allow_html=True)
         etapas = [
-            ("1. Captura do frame", "A câmera Pi térmica gera imagens em escala de cinza representando a temperatura por pixel da superfície do Polisher."),
-            ("2. Classificação", "O EfficientNet-B3 analisa o padrão térmico e classifica o frame em Normal, Atenção ou Crítico com uma pontuação de confiança."),
-            ("3. Localização (Grad-CAM)", "Um mapa de ativação destaca as áreas do frame responsáveis pela classificação — sem precisar de anotações manuais."),
-            ("4. Segmentação (U-Net)", "A U-Net refina a localização, produzindo uma máscara precisa por pixel das regiões anômalas."),
-            ("5. Resultado visual", "Contornos coloridos (verde / laranja / vermelho) são desenhados sobre o frame conforme a classe detectada."),
+            ("1. Captura do frame", "A câmera Pi térmica registra a temperatura por pixel da superfície do Polisher em formato HDF5 (°C/pixel)."),
+            ("2. Pré-processamento", "O frame é convertido para PNG grayscale 320×240, normalizado localmente (canal spatial) e globalmente (canal temperatura)."),
+            ("3. Classificação + Grad-CAM", "O EfficientNet-B3 classifica o frame e gera um mapa de ativação que localiza as regiões determinantes — sem anotações."),
+            ("4. Segmentação (U-Net)", "A U-Net recebe os 3 canais e produz uma máscara de probabilidade por pixel, identificando exatamente as regiões anômalas."),
+            ("5. Resultado visual", "Contornos coloridos (verde / laranja / vermelho) e bounding boxes são sobrepostos ao frame com colormap inferno."),
         ]
         for titulo, desc in etapas:
             st.markdown(f"""
@@ -1224,39 +1368,49 @@ O resultado é exibido como contornos e bounding boxes sobrepostos ao frame.
                 <div style="color:#5e6d7c;font-size:0.86rem;margin-top:0.25rem;">{desc}</div>
             </div>
             """, unsafe_allow_html=True)
-
+ 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── O que cada classe significa ────────────────────────────────
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 5 — CLASSES
+    # ══════════════════════════════════════════════════════
     st.markdown('<div class="section-title">O que cada classe significa</div>', unsafe_allow_html=True)
     cc1, cc2, cc3 = st.columns(3)
     for col, cls, cor, titulo, desc in [
         (cc1, "normal",  "#2a9d5c", "✅ Normal",
          "Temperatura e padrão espacial dentro do esperado para o processo. Nenhuma ação necessária."),
         (cc2, "atencao", "#e06c00", "🔶 Atenção",
-         "Região com temperatura elevada ou padrão incomum. Recomenda-se monitorar os próximos frames."),
+         "Temperatura acima do percentil 75 da distribuição ou padrão incomum. Recomenda-se monitorar os próximos frames."),
         (cc3, "critico", "#c0392b", "🔴 Crítico",
-         "Anomalia térmica significativa detectada. Verificação imediata da superfície é recomendada."),
+         "Temperatura acima do percentil 95 — anomalia térmica significativa. Verificação imediata da superfície é recomendada."),
     ]:
         col.markdown(f"""
         <div class="card-soft" style="border-left:4px solid {cor};padding:1rem;height:100%;">
             <div style="font-weight:800;font-size:1rem;color:{cor};">{titulo}</div>
             <div style="color:#5e6d7c;font-size:0.87rem;margin-top:0.4rem;">{desc}</div>
         </div>""", unsafe_allow_html=True)
-
+ 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-    # ── Parâmetros técnicos ────────────────────────────────────────
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 6 — PARÂMETROS TÉCNICOS
+    # ══════════════════════════════════════════════════════
     st.markdown('<div class="section-title">Parâmetros técnicos do treinamento</div>', unsafe_allow_html=True)
     cfg_items = [
         ("Resolução dos frames",      f"{model_cfg['img_size'][1]} × {model_cfg['img_size'][0]} pixels"),
         ("Faixa de temperatura",      f"{model_cfg['g_min']:.1f}°C  →  {model_cfg['g_max']:.1f}°C"),
-        ("Limiar classe Atenção",     f"acima de {model_cfg['thresh_atencao']:.1f}°C" if model_cfg['thresh_atencao'] else "—"),
-        ("Limiar classe Crítico",     f"acima de {model_cfg['thresh_critico']:.1f}°C" if model_cfg['thresh_critico'] else "—"),
-        ("Percentil Grad-CAM",        f"Top {model_cfg['gradcam_thresh']}% de ativação vira pseudo-máscara"),
+        ("Limiar classe Atenção",     f"acima de {model_cfg['thresh_atencao']:.1f}°C (p75)" if model_cfg['thresh_atencao'] else "—"),
+        ("Limiar classe Crítico",     f"acima de {model_cfg['thresh_critico']:.1f}°C (p95)" if model_cfg['thresh_critico'] else "—"),
+        ("Percentil Grad-CAM",        f"Top {model_cfg['gradcam_thresh']}% de ativação → pseudo-mask"),
         ("Backbone classificador",    f"EfficientNet-B3 ({model_cfg['backend']})"),
-        ("Segmentador",               "U-Net com encoder ResNet34, 3 canais de entrada"),
+        ("Segmentador",               "U-Net — 3 canais de entrada (spatial + temp + Grad-CAM)"),
+        ("Divisão treino/val/teste",  "80% / 10% / 10%"),
+        ("Dropout classificador",     "0.40 (head) — previne overfitting"),
+        ("Dropout U-Net",             "0.20 (encoder/bottleneck)"),
+        ("Épocas máx. classificador", "50 (early stopping patience=12)"),
+        ("Épocas máx. U-Net",         "40 (early stopping patience=12)"),
         ("Hardware de inferência",    str(device).upper()),
+        ("Fonte dos dados",           "Pitch-In LBAM — Univ. Sheffield / Kaggle"),
     ]
     ci1, ci2 = st.columns(2)
     for i, (k, v) in enumerate(cfg_items):
@@ -1267,7 +1421,31 @@ O resultado é exibido como contornos e bounding boxes sobrepostos ao frame.
                 <code style="font-size:0.85rem;">{v}</code>
             </div>
             """, unsafe_allow_html=True)
-
+ 
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+ 
+    # ══════════════════════════════════════════════════════
+    #  SEÇÃO 7 — AVISO DE LIMITAÇÕES
+    # ══════════════════════════════════════════════════════
+    st.markdown("""
+    <div class="card-alert">
+        <div style="font-weight:700;font-size:0.95rem;color:#b85c00;margin-bottom:0.4rem;">
+            ⚠️ Limitações e considerações importantes
+        </div>
+        <div style="color:#5e6d7c;font-size:0.87rem;line-height:1.7;">
+            <strong>Labels automáticos:</strong> as classes (Normal / Atenção / Crítico) são definidas
+            por percentis da distribuição de temperatura do próprio dataset — não por um especialista
+            de processo. Os limiares devem ser validados com conhecimento do domínio real.<br>
+            <strong>Pseudo-masks:</strong> a U-Net é treinada com máscaras derivadas automaticamente
+            do Grad-CAM, não de anotações humanas pixel-a-pixel. Isso torna o treinamento viável
+            sem custo de anotação, mas pode introduzir ruído nas bordas das regiões anômalas.<br>
+            <strong>Domínio:</strong> o sistema foi treinado exclusivamente com dados de câmera Pi
+            térmica em processo de polimento de aço. Imagens de outras câmeras ou processos podem
+            não ser representadas adequadamente pelo modelo.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+ 
 # ══════════════════════════════════════════════════════════
 #  ABA — EXEMPLOS
 # ══════════════════════════════════════════════════════════
